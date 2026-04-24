@@ -1,0 +1,17 @@
+[build-system]
+requires = ["maturin>=1.4,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "quant-trade"
+version = "0.1.0"
+requires-python = ">=3.11"
+
+[tool.maturin]
+module-name = "quant_core"
+manifest-path = "core_engine/Cargo.toml"
+features = ["pyo3/extension-module"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

@@ -1,0 +1,57 @@
+# Data sources
+akshare>=1.12.0
+tushare>=1.4.0
+ccxt>=4.2.0
+aiohttp>=3.9.0
+websockets>=12.0
+
+# Computation
+pandas>=2.0.0
+numpy>=1.26.0
+ta>=0.11.0
+# ta-lib>=0.4.28  # optional: C build, needs binary pre-installed (conda install ta-lib)
+
+# Database
+sqlalchemy>=2.0.0
+
+# Configuration
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+python-dotenv>=1.0.0
+pyyaml>=6.0.0
+
+# Scheduling (4.x rewrote asyncio support; 3.x AsyncIOScheduler has known bugs)
+apscheduler>=4.0.0
+
+# Logging
+loguru>=0.7.0
+
+# Visualisation
+plotly>=5.18.0
+
+# GUI (static pages)
+streamlit>=1.30.0
+
+# Live trading real-time push (WebSocket server)
+fastapi>=0.110.0
+uvicorn>=0.29.0
+
+# Strategy hot-reload
+watchdog>=3.0.0
+
+# Security: encrypted API key storage
+cryptography>=41.0.0
+cffi>=1.16.0             # required by cryptography 41.x on some systems
+
+# Futures live trading
+openctp-ctp>=6.7.2
+
+# Windows integration
+pywin32>=306; sys_platform == "win32"
+
+# Testing
+pytest>=7.4.0
+pytest-mock>=3.12.0
+
+# Build (Rust extension)
+maturin>=1.4.0

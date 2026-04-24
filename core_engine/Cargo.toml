@@ -1,0 +1,23 @@
+[package]
+name = "core_engine"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "quant_core"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.22", features = ["extension-module"] }
+crossbeam = "0.8"
+rayon = "1.10"
+serde = { version = "1.0", features = ["derive"] }
+numpy = "0.22"
+
+[dev-dependencies]
+approx = "0.5"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

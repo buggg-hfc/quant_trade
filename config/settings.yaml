@@ -1,0 +1,54 @@
+system:
+  mode: backtest          # backtest | paper | live
+  log_level: INFO
+
+data:
+  default_source: akshare
+  adjust: qfq             # qfq=forward-adjusted (backtest) | hfq=backward | ""=raw (live)
+
+validator_thresholds:
+  stock: 0.11             # A-share (ST ±5%, STAR/ChiNext ±20%, use upper bound)
+  futures_commodity: 0.06 # commodity futures (most ±5%, +1% buffer)
+  futures_index: 0.11     # index futures ±10%
+  futures_energy: 0.16    # crude oil etc. ±15%
+  crypto: 1.0             # no limit; outlier detection via statistical model
+
+backtest:
+  start_date: "2020-01-01"
+  end_date: "2024-12-31"
+  initial_capital: 1000000
+  commission_rate: 0.0003
+  slippage: 0.001
+  price_limit_pct: 0.10
+
+risk:
+  max_position_pct: 0.2
+  daily_loss_limit: 0.02
+  max_drawdown: 0.10
+  max_order_volume: 1000.0
+
+gateway:
+  ctp:
+    broker_id: ""
+    user_id: ""
+    td_address: "tcp://..."
+    md_address: "tcp://..."
+    # All secrets via KeyStore.set_key("ctp_password", ...)
+  xtp:
+    server_ip: ""
+    server_port: 24800
+    account: ""
+    client_id: 1
+    # password via KeyStore.set_key("xtp_password", ...)
+  crypto:
+    exchange: binance
+    sandbox: true
+    # api_key/secret via KeyStore.set_key("crypto_api_key"/"crypto_secret", ...)
+
+notifier:
+  email:
+    smtp_host: smtp.qq.com
+    port: 465
+    sender: ""
+    receiver: ""
+  wechat_webhook: ""

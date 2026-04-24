@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Rust build artifacts
+target/
+
+# maturin output (installed into venv, not source)
+*.so
+*.dll
+
+# Project runtime data (keep directories via .gitkeep, ignore contents)
+data_cache/*
+!data_cache/.gitkeep
+logs/*
+!logs/.gitkeep
+reports/*
+!reports/.gitkeep
+
+# Secrets
+config/.env
+*.env
+!config/.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
