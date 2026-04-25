@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>quant_trade — 实盘看板</title>
+<style>
+  :root {
+    --bg: #0d1117; --card: #161b22; --border: #30363d;
+    --text: #c9d1d9; --green: #3fb950; --red: #f85149;
+    --blue: #58a6ff; --yellow: #d29922; --dim: #8b949e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; font-size: 14px; }
+  header { background: var(--card); border-bottom: 1px solid var(--border);
+           padding: 12px 24px; display: flex; align-items: center; gap: 16px; }
+  header h1 { font-size: 18px; font-weight: 600; }
+  #status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--red); }
+  #status-dot.connected { background: var(--green); }
+  #status-label { color: var(--dim); font-size: 12px; }
+  .grid { display: grid; gap: 16px; padding: 16px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .card h3 { font-size: 12px; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+  .metric { font-size: 28px; font-weight: 700; }
+  .metric.pos { color: var(--green); } .metric.neg { color: var(--red); }
+  section { margin: 0 16px 16px; }
+  section h2 { font-size: 14px; font-weight: 600; color: var(--dim); margin-bottom: 8px;
+               text-transform: uppercase; letter-spacing: .05em; }
+  table { width: 100%; border-collapse: collapse; background: var(--card);
+          border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  th { background: var(--border); padding: 8px 12px; text-align: left; font-size: 12px;
+       color: var(--dim); font-weight: 600; text-transform: uppercase; }
+  td { padding: 8px 12px; border-top: 1px solid var(--border); font-size: 13px; }
+  tr:hover td { background: rgba(255,255,255,.03); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .badge.long  { background: rgba(63,185,80,.15); color: var(--green); }
+  .badge.short { background: rgba(248,81,73,.15);  color: var(--red); }
+  .badge.filled    { background: rgba(63,185,80,.15);  color: var(--green); }
+  .badge.accepted  { background: rgba(88,166,255,.15); color: var(--blue); }
+  .badge.cancelled { background: rgba(139,148,158,.15); color: var(--dim); }
+  #last-update { color: var(--dim); font-size: 11px; margin-left: auto; }
+</style>
+</head>
+<body>
+
+<header>
+  <div id="status-dot"></div>
+  <h1>quant_trade 实盘看板</h1>
+  <span id="status-label">Connecting…</span>
+  <span id="last-update">—</span>
+</header>
+
+<div class="grid">
+  <div class="card"><h3>账户余额</h3><div class="metric" id="balance">—</div></div>
+  <div class="card"><h3>可用资金</h3><div class="metric" id="available">—</div></div>
+  <div class="card"><h3>累计盈亏</h3><div class="metric" id="pnl">—</div></div>
+  <div class="card"><h3>持仓数</h3><div class="metric" id="pos-count">—</div></div>
+  <div class="card"><h3>挂单数</h3><div class="metric" id="order-count">—</div></div>
+  <div class="card"><h3>成交笔数</h3><div class="metric" id="trade-count">0</div></div>
+</div>
+
+<section>
+  <h2>持仓</h2>
+  <table><thead><tr><th>标的</th><th>净持仓</th><th>均价</th><th>市值估算</th></tr></thead>
+  <tbody id="pos-tbody"><tr><td colspan="4" style="color:var(--dim);text-align:center">暂无持仓</td></tr></tbody></table>
+</section>
+
+<section>
+  <h2>挂单</h2>
+  <table><thead><tr><th>订单号</th><th>标的</th><th>方向</th><th>价格</th><th>数量</th><th>状态</th></tr></thead>
+  <tbody id="orders-tbody"><tr><td colspan="6" style="color:var(--dim);text-align:center">暂无挂单</td></tr></tbody></table>
+</section>
+
+<section>
+  <h2>最近成交（最多100条）</h2>
+  <table><thead><tr><th>时间</th><th>标的</th><th>方向</th><th>价格</th><th>数量</th><th>手续费</th></tr></thead>
+  <tbody id="trades-tbody"><tr><td colspan="6" style="color:var(--dim);text-align:center">暂无成交</td></tr></tbody></table>
+</section>
+
+<script>
+const WS_URL = `ws://${location.host}/ws`;
+let tradeCount = 0;
+let positions = {}, openOrders = [], trades = [];
+
+function fmt(n) { return typeof n === 'number' ? n.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : n; }
+function pnlClass(v) { return v > 0 ? 'pos' : v < 0 ? 'neg' : ''; }
+
+function renderAccount(a) {
+  document.getElementById('balance').textContent = fmt(a.balance);
+  document.getElementById('available').textContent = fmt(a.available);
+  const el = document.getElementById('pnl');
+  el.textContent = (a.total_pnl >= 0 ? '+' : '') + fmt(a.total_pnl);
+  el.className = 'metric ' + pnlClass(a.total_pnl);
+}
+
+function renderPositions(ps) {
+  positions = ps;
+  document.getElementById('pos-count').textContent = Object.keys(ps).length;
+  const tbody = document.getElementById('pos-tbody');
+  const rows = Object.entries(ps).map(([sym, p]) => {
+    const mv = p.net_volume * p.avg_price;
+    return `<tr><td>${sym}</td><td>${fmt(p.net_volume)}</td><td>${fmt(p.avg_price)}</td><td>${fmt(mv)}</td></tr>`;
+  });
+  tbody.innerHTML = rows.length ? rows.join('') : '<tr><td colspan="4" style="color:var(--dim);text-align:center">暂无持仓</td></tr>';
+}
+
+function renderOrders(orders) {
+  openOrders = orders;
+  document.getElementById('order-count').textContent = orders.length;
+  const tbody = document.getElementById('orders-tbody');
+  const rows = orders.map(o => {
+    const dirBadge = `<span class="badge ${o.direction.toLowerCase()}">${o.direction === 'LONG' ? '买入' : '卖出'}</span>`;
+    const statusBadge = `<span class="badge ${o.status.toLowerCase()}">${o.status}</span>`;
+    return `<tr><td style="font-family:monospace;font-size:11px">${o.order_id.slice(0,8)}…</td><td>${o.symbol}</td><td>${dirBadge}</td><td>${fmt(o.price)}</td><td>${fmt(o.volume)}</td><td>${statusBadge}</td></tr>`;
+  });
+  tbody.innerHTML = rows.length ? rows.join('') : '<tr><td colspan="6" style="color:var(--dim);text-align:center">暂无挂单</td></tr>';
+}
+
+function renderTrades(ts) {
+  trades = ts;
+  tradeCount = ts.length;
+  document.getElementById('trade-count').textContent = tradeCount;
+  const tbody = document.getElementById('trades-tbody');
+  const rows = ts.slice(0, 50).map(t => {
+    const dirBadge = `<span class="badge ${t.direction.toLowerCase()}">${t.direction === 'LONG' ? '买入' : '卖出'}</span>`;
+    return `<tr><td style="color:var(--dim)">${(t.ts||'').slice(11,19)}</td><td>${t.symbol}</td><td>${dirBadge}</td><td>${fmt(t.price)}</td><td>${fmt(t.volume)}</td><td>${fmt(t.commission)}</td></tr>`;
+  });
+  tbody.innerHTML = rows.length ? rows.join('') : '<tr><td colspan="6" style="color:var(--dim);text-align:center">暂无成交</td></tr>';
+}
+
+function connect() {
+  const ws = new WebSocket(WS_URL);
+  const dot = document.getElementById('status-dot');
+  const label = document.getElementById('status-label');
+
+  ws.onopen = () => { dot.className = 'connected'; label.textContent = '已连接'; };
+  ws.onclose = () => {
+    dot.className = ''; label.textContent = '断开，3秒后重连…';
+    setTimeout(connect, 3000);
+  };
+
+  ws.onmessage = e => {
+    const msg = JSON.parse(e.data);
+    document.getElementById('last-update').textContent = '更新 ' + new Date().toLocaleTimeString('zh-CN');
+
+    if (msg.type === 'snapshot') {
+      const d = msg.data;
+      renderAccount(d.account);
+      renderPositions(d.positions || {});
+      renderOrders(d.open_orders || []);
+      renderTrades(d.recent_trades || []);
+    } else if (msg.type === 'account') {
+      renderAccount(msg.data);
+    } else if (msg.type === 'position') {
+      positions[msg.data.symbol] = msg.data;
+      renderPositions(positions);
+    } else if (msg.type === 'order') {
+      const o = msg.data;
+      openOrders = openOrders.filter(x => x.order_id !== o.order_id);
+      if (['SUBMITTED','ACCEPTED','PARTIAL'].includes(o.status)) openOrders.push(o);
+      renderOrders(openOrders);
+    } else if (msg.type === 'trade') {
+      trades.unshift(msg.data);
+      if (trades.length > 100) trades.pop();
+      renderTrades(trades);
+    } else if (msg.type === 'status') {
+      label.textContent = msg.data.status + (msg.data.gateway ? ` (${msg.data.gateway})` : '');
+    }
+  };
+}
+
+connect();
+</script>
+</body>
+</html>
